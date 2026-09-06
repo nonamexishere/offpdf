@@ -18,6 +18,7 @@ mod edit_overlay_integ;
 pub mod metadata;
 pub mod nup;
 pub mod ocr;
+pub mod ocr_langs;
 pub mod office;
 pub mod outline;
 pub mod overlay;

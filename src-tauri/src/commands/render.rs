@@ -193,6 +193,14 @@ pub async fn ocr_available(app: tauri::AppHandle) -> Result<bool, AppError> {
         .map_err(|e| AppError::io("Could not probe Tesseract.", e))
 }
 
+/// Installed Tesseract language codes (`--list-langs`, same binary/tessdata as OCR).
+#[tauri::command]
+pub async fn ocr_list_langs(app: tauri::AppHandle) -> Result<Vec<String>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || ocr::list_langs(&app))
+        .await
+        .map_err(|e| AppError::io("Could not list Tesseract languages.", e))?
+}
+
 /// OCR the combined document into one searchable PDF.
 #[tauri::command]
 pub async fn ocr_pdf(
