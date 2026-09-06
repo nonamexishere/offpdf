@@ -81,3 +81,12 @@ export function ocrLangLabel(code: string): string {
 export function joinOcrLangs(codes: string[]): string {
   return Array.from(new Set(codes)).sort().join("+");
 }
+
+const DEFAULT_SEARCH_OCR_PREFERRED = ["eng", "tur"];
+
+/** Preferred ∩ installed, then `joinOcrLangs`. Empty intersection → `""`. */
+export function pickSearchOcrLang(installed: string[], preferred?: string[]): string {
+  const prefs = preferred ?? DEFAULT_SEARCH_OCR_PREFERRED;
+  const have = new Set(installed);
+  return joinOcrLangs(prefs.filter((code) => have.has(code)));
+}
