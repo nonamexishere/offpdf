@@ -15,7 +15,7 @@ import {
 } from "@/components/pdf";
 import { useJob, JobStatus, useDiskGuard } from "@/components/jobs";
 import { ocrPdf, ocrAvailable, ocrListLangs } from "@/lib/tauriCommands";
-import { joinOcrLangs, ocrLangLabel } from "@/lib/ocrLangs";
+import { documentOcrLangs, joinOcrLangs, ocrLangLabel } from "@/lib/ocrLangs";
 import { getTool } from "@/lib/tools";
 import { toAppError } from "@/lib/types";
 import { estimateRequiredBytes, validateOutputName, joinPath } from "@/lib/validation";
@@ -62,7 +62,7 @@ export function OcrPage() {
         if (!on) return;
         setInstalled(codes);
         setListError(null);
-        setSelected(codes.includes("eng") ? ["eng"] : []);
+        setSelected(documentOcrLangs(codes).includes("eng") ? ["eng"] : []);
       })
       .catch((e) => {
         if (!on) return;
@@ -110,7 +110,8 @@ export function OcrPage() {
     });
   };
 
-  const listedOk = installed !== null && installed.length > 0;
+  const documentLangs = installed === null ? [] : documentOcrLangs(installed);
+  const listedOk = installed !== null && documentLangs.length > 0;
   const canStart = refs.length > 0 && !!folder && available && !job.isBusy && selected.length > 0 && listedOk;
 
   return (
@@ -137,9 +138,9 @@ export function OcrPage() {
             {listError}
           </Alert>
         )}
-        {installed && installed.length > 0 && (
+        {installed && documentLangs.length > 0 && (
           <div className="col" role="group" aria-label="Document languages">
-            {installed.map((code) => (
+            {documentLangs.map((code) => (
               <label key={code} className="row" style={{ gap: 8, cursor: "pointer", alignItems: "center" }}>
                 <input
                   type="checkbox"
@@ -153,6 +154,11 @@ export function OcrPage() {
         )}
         {available && installed === null && !listError && (
           <p className="muted">Loading languages…</p>
+        )}
+        {installed && !listError && documentLangs.length === 0 && (
+          <p className="muted">
+            No document language packs. Install tesseract-lang (OffPDF does not download them).
+          </p>
         )}
         <div className="mt">
           <Alert variant="info">

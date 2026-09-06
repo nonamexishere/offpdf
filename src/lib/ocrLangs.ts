@@ -90,3 +90,18 @@ export function pickSearchOcrLang(installed: string[], preferred?: string[]): st
   const have = new Set(installed);
   return joinOcrLangs(prefs.filter((code) => have.has(code)));
 }
+
+/** Toast copy when search OCR has no English or Turkish pack (no picker on that path). */
+export function searchOcrEmptyToast(): { title: string; description: string } {
+  return {
+    title: "No English or Turkish pack",
+    description:
+      "Install tesseract-lang, or run OCR from the OCR tool to pick an installed language.",
+  };
+}
+
+/** Installed codes minus Tesseract utility packs (`osd`/`equ`/`snum`); order preserved. */
+export function documentOcrLangs(installed: string[]): string[] {
+  const skip = new Set(["osd", "equ", "snum"]);
+  return installed.filter((code) => !skip.has(code));
+}

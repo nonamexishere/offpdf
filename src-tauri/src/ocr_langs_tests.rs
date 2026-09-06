@@ -71,3 +71,20 @@ fn ocr_reject_missing_lang() {
         )
     });
 }
+
+#[test]
+fn ocr_reject_plus_lang_partially_installed() {
+    let err = validate_ocr_lang("eng+tur", INSTALLED).expect_err(
+        "ocr-reject-plus-lang-partially-installed: eng+tur against [eng, osd] must be AppError, not Ok",
+    );
+    assert_eq!(
+        err.code, "OCR_LANG_MISSING",
+        "ocr-reject-plus-lang-partially-installed: eng+tur vs [eng, osd] must be OCR_LANG_MISSING; got {} ({})",
+        err.code, err.message
+    );
+    assert!(
+        err.message.contains("tur"),
+        "ocr-reject-plus-lang-partially-installed: message must name tur; got {}",
+        err.message
+    );
+}

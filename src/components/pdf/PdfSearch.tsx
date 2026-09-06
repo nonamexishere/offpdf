@@ -23,7 +23,7 @@ import {
 } from "@/lib/tauriCommands";
 import { joinPath } from "@/lib/validation";
 import { toAppError, type PageRef } from "@/lib/types";
-import { pickSearchOcrLang } from "@/lib/ocrLangs";
+import { pickSearchOcrLang, searchOcrEmptyToast } from "@/lib/ocrLangs";
 import { buildPicks } from "./useCombinedDoc";
 
 const cache = new Map<string, string[]>();
@@ -115,7 +115,7 @@ export function PdfSearch({ refs, onOpen }: { refs: PageRef[]; onOpen: (ref: Pag
       const installed = await ocrListLangs();
       const lang = pickSearchOcrLang(installed);
       if (!lang) {
-        toast({ title: "Select a language", variant: "error" });
+        toast({ ...searchOcrEmptyToast(), variant: "error" });
         return;
       }
       const dir = await getTempDir();
