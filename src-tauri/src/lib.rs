@@ -131,12 +131,18 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while running the OffPDF application")
         .run(|app, event| {
-            if let tauri::RunEvent::Opened { urls } = event {
-                let paths = urls
-                    .iter()
-                    .filter_map(|url| os_open::parse_opened_token(url.as_str()))
-                    .collect();
-                os_open::enqueue_opened_paths(app, paths);
+            // Finder delivers Opened only on macOS. Linux/Windows use argv +
+            // single-instance (enqueue_cold_start_argv / plugin callback).
+            match event {
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Opened { urls } => {
+                    let paths = urls
+                        .iter()
+                        .filter_map(|url| os_open::parse_opened_token(url.as_str()))
+                        .collect();
+                    os_open::enqueue_opened_paths(app, paths);
+                }
+                _ => {}
             }
         });
 }
