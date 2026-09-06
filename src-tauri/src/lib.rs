@@ -39,6 +39,9 @@ mod os_open;
 mod pdf_engine;
 mod utils;
 
+#[cfg(test)]
+mod ocr_langs_tests;
+
 use models::JobRegistry;
 use std::sync::Mutex;
 
@@ -117,6 +120,7 @@ pub fn run() {
             commands::render::office_to_pdf_batch,
             commands::render::pdf_to_office,
             commands::render::ocr_available,
+            commands::render::ocr_list_langs,
             commands::render::ocr_pdf,
             commands::render::pdfa_pdf,
             commands::render::detect_blank_pages,

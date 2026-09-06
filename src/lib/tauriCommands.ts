@@ -295,6 +295,11 @@ export function ocrAvailable(): Promise<boolean> {
   return invoke<boolean>("ocr_available");
 }
 
+/** Installed Tesseract language codes from the same binary the OCR job uses. */
+export function ocrListLangs(): Promise<string[]> {
+  return invoke<string[]>("ocr_list_langs");
+}
+
 /** OCR the combined document into one searchable PDF. `lang` e.g. "eng" or "tur". */
 export function ocrPdf(
   jobId: string,
