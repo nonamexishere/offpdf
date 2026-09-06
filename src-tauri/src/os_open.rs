@@ -98,10 +98,10 @@ pub fn take_opened_paths(queue: State<'_, Mutex<OpenedPathQueue>>) -> Vec<String
 }
 
 fn strip_file_scheme(token: &str) -> Option<&str> {
-    if token.len() >= 7 && token[..7].eq_ignore_ascii_case("file://") {
-        Some(&token[7..])
-    } else {
-        None
+    // `get` returns None when 7 is not a char boundary (e.g. `/tmp/报告.pdf`).
+    match token.get(..7) {
+        Some(prefix) if prefix.eq_ignore_ascii_case("file://") => token.get(7..),
+        _ => None,
     }
 }
 
@@ -131,10 +131,15 @@ fn file_url_to_path(after_scheme: &str) -> Option<PathBuf> {
 
 fn strip_localhost_host(after_scheme: &str) -> &str {
     const HOST: &str = "localhost";
-    if after_scheme.len() >= HOST.len() && after_scheme[..HOST.len()].eq_ignore_ascii_case(HOST) {
-        let rest = &after_scheme[HOST.len()..];
-        if rest.is_empty() || rest.starts_with('/') {
-            return rest;
+    // Off-boundary indexes (e.g. `/tmp/报告.pdf`) fall through to the raw path.
+    if after_scheme
+        .get(..HOST.len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(HOST))
+    {
+        if let Some(rest) = after_scheme.get(HOST.len()..) {
+            if rest.is_empty() || rest.starts_with('/') {
+                return rest;
+            }
         }
     }
     after_scheme

@@ -1,13 +1,4 @@
-//! Unit tests for `crate::os_open` (issue #74).
-//!
-//! Named helper: `src-tauri/src/os_open.rs`. The product module may be missing
-//! until impl. Expected public surface:
-//!
-//! - `parse_opened_argv(args: impl IntoIterator<Item = impl AsRef<str>>) -> Vec<PathBuf>`
-//!   skips argv[0], then maps the rest through `parse_opened_token`.
-//! - `parse_opened_token(token: &str) -> Option<PathBuf>`
-//!   accepts a raw path or `file://` (percent-decoded); drops `-flag`s and
-//!   non-file URLs. Does not read file bytes.
+//! Unit tests for `crate::os_open` argv / `file://` parsing (issue #74).
 
 use std::path::PathBuf;
 
@@ -84,5 +75,44 @@ fn os_open_parse_skip_flags_and_urls() {
         token("offpdf"),
         None,
         "os-open-parse-skip-flags-and-urls: a bare argv[0]-like token is not an opened path",
+    );
+}
+
+#[test]
+fn os_open_parse_utf8_cjk_tmp() {
+    assert_eq!(
+        token("/tmp/报告.pdf"),
+        Some(PathBuf::from("/tmp/报告.pdf")),
+        "R-UTF8: raw /tmp/报告.pdf must become Some without slicing at a non-char boundary",
+    );
+}
+
+#[test]
+fn os_open_parse_utf8_cjk_home() {
+    assert_eq!(
+        token("/home/用户/a.pdf"),
+        Some(PathBuf::from("/home/用户/a.pdf")),
+        "R-UTF8: raw /home/用户/a.pdf must become Some without slicing at a non-char boundary",
+    );
+}
+
+#[test]
+fn os_open_parse_utf8_file_url_cjk() {
+    assert_eq!(
+        token("file:///tmp/报告.pdf"),
+        Some(PathBuf::from("/tmp/报告.pdf")),
+        "R-UTF8: unencoded file:///tmp/报告.pdf must decode to /tmp/报告.pdf without panic",
+    );
+}
+
+#[test]
+fn os_open_parse_utf8_cjk_argv() {
+    assert_eq!(
+        argv(&["offpdf", "/tmp/报告.pdf", "/home/用户/a.pdf"]),
+        vec![
+            PathBuf::from("/tmp/报告.pdf"),
+            PathBuf::from("/home/用户/a.pdf"),
+        ],
+        "R-UTF8: argv CJK paths must survive parse_opened_argv",
     );
 }
