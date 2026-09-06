@@ -16,6 +16,7 @@
 //!   - `open_path(path: String) -> Result<(), AppError>`
 //!   - `clear_temp_files() -> Result<u64, AppError>`  (bytes freed)
 //!   - `get_temp_dir() -> Result<String, AppError>`
+//!   - `take_opened_paths() -> Vec<String>`  (OS Open With / argv; paths only)
 //!
 //! PDF operations (`commands::pdf`) — all take a frontend-generated `job_id`
 //! and emit `job:update` events while running:
@@ -34,20 +35,35 @@
 mod commands;
 mod error;
 mod models;
+mod os_open;
 mod pdf_engine;
 mod utils;
 
 use models::JobRegistry;
+use std::sync::Mutex;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // First plugin: a second launch forwards argv to this process instead of
+    // opening another empty workspace. Local IPC only (named pipe / UDS / D-Bus).
+    #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            os_open::focus_main_window(app);
+            os_open::enqueue_opened_paths(app, os_open::parse_opened_argv(args));
+        }));
+    }
+
+    builder
         // Local file dialogs (open/save). No network.
         .plugin(tauri_plugin_dialog::init())
         // Open a file or folder in the OS default handler. No network.
         .plugin(tauri_plugin_opener::init())
         // Shared, cancellable job registry.
         .manage(JobRegistry::default())
+        .manage(Mutex::new(os_open::OpenedPathQueue::default()))
         .invoke_handler(tauri::generate_handler![
             // files / system
             commands::files::pick_pdf_files,
@@ -61,6 +77,7 @@ pub fn run() {
             commands::files::copy_file,
             commands::files::clear_temp_files,
             commands::files::get_temp_dir,
+            os_open::take_opened_paths,
             // pdf operations
             commands::pdf::merge_pdfs,
             commands::pdf::assemble_pdf,
@@ -107,6 +124,22 @@ pub fn run() {
             commands::render::write_pdf_meta,
             commands::render::export_pdf_text,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running the OffPDF application");
+        .setup(|app| {
+            os_open::enqueue_cold_start_argv(app.handle());
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while running the OffPDF application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Opened { urls } = event {
+                let paths = urls
+                    .iter()
+                    .filter_map(|url| os_open::parse_opened_token(url.as_str()))
+                    .collect();
+                os_open::enqueue_opened_paths(app, paths);
+            }
+        });
 }
+
+#[cfg(test)]
+mod os_open_tests;
