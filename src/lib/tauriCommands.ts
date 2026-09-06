@@ -86,6 +86,20 @@ export function getTempDir(): Promise<string> {
   return invoke<string>("get_temp_dir");
 }
 
+/** Drain OS-opened paths queued before the frontend listener was ready. */
+export function takeOpenedPaths(): Promise<string[]> {
+  return invoke<string[]>("take_opened_paths");
+}
+
+/** Subscribe to later Open With / second-instance paths (paths only). */
+export async function onOpenedPaths(
+  handler: (paths: string[]) => void,
+): Promise<UnlistenFn> {
+  return listen<string[]>("os-open:paths", (event) => {
+    handler(event.payload ?? []);
+  });
+}
+
 /** Copy a file to a new path; returns the destination path. */
 export function copyFile(src: string, dst: string): Promise<string> {
   return invoke<string>("copy_file", { src, dst });
