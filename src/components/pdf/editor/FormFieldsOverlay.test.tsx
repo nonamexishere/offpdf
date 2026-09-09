@@ -1,8 +1,14 @@
+// @vitest-environment happy-dom
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FormField } from "@/lib/editor";
 import type { PageLayout } from "./PageSurface";
 import { FormFieldsOverlay } from "./FormFieldsOverlay";
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+  true;
 
 const noop = () => {};
 
@@ -89,6 +95,73 @@ function textareaBody(markup: string, name: string): string | undefined {
     if (getAttribute(`<textarea${match[1]}>`, "aria-label") === name) return match[2];
   }
   return undefined;
+}
+
+type ChangeSpy = ReturnType<typeof vi.fn<(name: string, value: string) => void>>;
+
+let live: { root: Root; container: HTMLDivElement } | null = null;
+
+afterEach(() => {
+  if (!live) return;
+  const { root, container } = live;
+  live = null;
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+});
+
+function mountOverlay(
+  fields: FormField[],
+  values: Record<string, string> = {},
+  sourcePage = 1,
+): { container: HTMLDivElement; onChange: ChangeSpy } {
+  const onChange = vi.fn<(name: string, value: string) => void>();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  live = { root, container };
+  act(() => {
+    root.render(
+      <FormFieldsOverlay
+        layout={letterLayout}
+        fields={fields}
+        values={values}
+        sourcePage={sourcePage}
+        onChange={onChange}
+      />,
+    );
+  });
+  return { container, onChange };
+}
+
+function controlByAriaName<T extends Element>(container: HTMLElement, name: string): T {
+  const el = container.querySelector(`[aria-label="${name}"]`);
+  if (!el) throw new Error(`no control with aria-label=${name}`);
+  return el as T;
+}
+
+function typeInto(el: HTMLInputElement | HTMLTextAreaElement, value: string): void {
+  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+  if (!setter) throw new Error("no native value setter");
+  act(() => {
+    setter.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+function changeSelect(el: HTMLSelectElement, value: string): void {
+  act(() => {
+    el.value = value;
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
+function clickCheckbox(el: HTMLInputElement): void {
+  act(() => {
+    el.click();
+  });
 }
 
 describe("FormFieldsOverlay", () => {
@@ -315,6 +388,156 @@ describe("FormFieldsOverlay", () => {
 
       expect(markup).not.toContain("pdf-editor__form-chrome");
       expect(controlTags(markup)).toEqual([]);
+    });
+  });
+
+  describe("form-overlay-onchange-text", () => {
+    it("emits onChange(FullName, typed string) when typing into kind text", () => {
+      const { container, onChange } = mountOverlay([
+        field({ name: "FullName", kind: "text", multiline: false }),
+      ]);
+      const input = controlByAriaName<HTMLInputElement>(container, "FullName");
+
+      typeInto(input, "Ada Lovelace");
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("FullName", "Ada Lovelace");
+    });
+  });
+
+  describe("form-overlay-onchange-multiline", () => {
+    it("emits onChange(Notes, typed string) when typing into a multiline textarea", () => {
+      const { container, onChange } = mountOverlay([
+        field({ name: "Notes", kind: "text", multiline: true }),
+      ]);
+      const area = controlByAriaName<HTMLTextAreaElement>(container, "Notes");
+
+      typeInto(area, "line one\nline two");
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("Notes", "line one\nline two");
+    });
+  });
+
+  describe("form-overlay-onchange-checkbox", () => {
+    it("emits onChange(Agree, Yes) when clicking an unchecked box with empty exportValues", () => {
+      const { container, onChange } = mountOverlay([
+        field({ name: "Agree", kind: "checkbox", exportValues: [] }),
+      ]);
+      const box = controlByAriaName<HTMLInputElement>(container, "Agree");
+
+      clickCheckbox(box);
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("Agree", "Yes");
+    });
+
+    it("emits onChange(Agree, Agreed) when exportValues[0] is Agreed", () => {
+      const { container, onChange } = mountOverlay([
+        field({ name: "Agree", kind: "checkbox", exportValues: ["Agreed"] }),
+      ]);
+      const box = controlByAriaName<HTMLInputElement>(container, "Agree");
+
+      clickCheckbox(box);
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("Agree", "Agreed");
+    });
+
+    it("emits onChange(Agree, Off) when clicking a checked box", () => {
+      const { container, onChange } = mountOverlay([
+        field({ name: "Agree", kind: "checkbox", value: "Yes" }),
+      ]);
+      const box = controlByAriaName<HTMLInputElement>(container, "Agree");
+
+      clickCheckbox(box);
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("Agree", "Off");
+    });
+  });
+
+  describe("form-overlay-onchange-radio", () => {
+    it("emits onChange(Color, chosen export value) when changing the radio select", () => {
+      const exportValues = ["Red", "Green", "Blue"];
+      const { container, onChange } = mountOverlay([
+        field({ name: "Color", kind: "radio", exportValues, value: "Green" }),
+      ]);
+      const select = controlByAriaName<HTMLSelectElement>(container, "Color");
+
+      changeSelect(select, "Blue");
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("Color", "Blue");
+    });
+  });
+
+  describe("form-overlay-onchange-combo", () => {
+    it("emits onChange(Fruit, choice) when changing a comboEdit false select", () => {
+      const choices = ["Apple", "Banana", "Cherry"];
+      const { container, onChange } = mountOverlay([
+        field({ name: "Fruit", kind: "combo", comboEdit: false, choices, value: "Banana" }),
+      ]);
+      const select = controlByAriaName<HTMLSelectElement>(container, "Fruit");
+
+      changeSelect(select, "Cherry");
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("Fruit", "Cherry");
+    });
+
+    it("emits onChange(Fruit, typed string) when typing into a comboEdit true input", () => {
+      const choices = ["Apple", "Banana", "Cherry"];
+      const { container, onChange } = mountOverlay([
+        field({ name: "Fruit", kind: "combo", comboEdit: true, choices, value: "Banana" }),
+      ]);
+      const input = controlByAriaName<HTMLInputElement>(container, "Fruit");
+
+      typeInto(input, "Mango");
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("Fruit", "Mango");
+    });
+  });
+
+  describe("form-overlay-onchange-list", () => {
+    it("emits onChange(Pick, choice) when changing the list select", () => {
+      const choices = ["One", "Two", "Three"];
+      const { container, onChange } = mountOverlay([
+        field({ name: "Pick", kind: "list", choices, value: "Two" }),
+      ]);
+      const select = controlByAriaName<HTMLSelectElement>(container, "Pick");
+
+      changeSelect(select, "Three");
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("Pick", "Three");
+    });
+  });
+
+  describe("form-overlay-onchange-disabled", () => {
+    it("does not call onChange when a readOnly checkbox is clicked", () => {
+      const { container, onChange } = mountOverlay([
+        field({ name: "Agree", kind: "checkbox", readOnly: true }),
+      ]);
+      const box = controlByAriaName<HTMLInputElement>(container, "Agree");
+
+      clickCheckbox(box);
+
+      expect(box.disabled).toBe(true);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("does not call onChange when a hidden checkbox is clicked", () => {
+      const { container, onChange } = mountOverlay([
+        field({ name: "Agree", kind: "checkbox", hidden: true }),
+      ]);
+      const box = controlByAriaName<HTMLInputElement>(container, "Agree");
+
+      clickCheckbox(box);
+
+      expect(box.disabled).toBe(true);
+      expect(onChange).not.toHaveBeenCalled();
     });
   });
 });
