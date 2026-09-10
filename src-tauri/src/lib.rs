@@ -31,11 +31,15 @@
 //! Jobs (`commands::jobs`):
 //!   - `cancel_job(registry, job_id: String) -> Result<(), AppError>`
 
+mod ai;
 mod commands;
 mod error;
 mod models;
 mod pdf_engine;
 mod utils;
+
+#[cfg(test)]
+mod ai_tests;
 
 use models::JobRegistry;
 

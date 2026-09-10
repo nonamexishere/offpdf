@@ -104,6 +104,22 @@ impl AppError {
         )
     }
 
+    pub fn ai_not_ready() -> Self {
+        Self::new(
+            "AI_NOT_READY",
+            "Local AI is not ready",
+            "The local inference backend is not loaded.",
+        )
+    }
+
+    pub fn ai_failed() -> Self {
+        Self::new(
+            "AI_FAILED",
+            "Local AI failed",
+            "The local inference backend could not complete this request.",
+        )
+    }
+
     pub fn io(context: &str, err: impl std::fmt::Display) -> Self {
         Self::new(
             "IO_ERROR",
