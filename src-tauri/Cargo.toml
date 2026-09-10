@@ -22,7 +22,7 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# SHA-256 for model-store integrity (issue #83). Not a runtime / HTTP crate.
+# Content-addressed model checksums.
 sha2 = "0.10"
 
 # Cross-platform available-disk-space query.

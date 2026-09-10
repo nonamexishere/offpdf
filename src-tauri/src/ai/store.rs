@@ -209,6 +209,15 @@ impl ModelStore {
             fs::rename(staged_blob, &dest_blob)?;
         }
         let dest_manifest = self.manifest_path(&manifest.checksum);
+        if dest_manifest.exists() {
+            if let Ok(existing) = fs::read_to_string(&dest_manifest) {
+                if let Ok(parsed) = ModelManifest::parse(&existing) {
+                    if parsed == *manifest {
+                        return Ok(());
+                    }
+                }
+            }
+        }
         let json = serde_json::to_string(manifest)
             .map_err(|err| AppError::ai_model_invalid().with_details(err.to_string()))?;
         let staged_manifest = staged_blob
@@ -216,9 +225,6 @@ impl ModelStore {
             .unwrap_or_else(|| Path::new("."))
             .join("manifest.json");
         fs::write(&staged_manifest, json.as_bytes())?;
-        if dest_manifest.exists() {
-            fs::remove_file(&dest_manifest)?;
-        }
         fs::rename(&staged_manifest, &dest_manifest)?;
         Ok(())
     }

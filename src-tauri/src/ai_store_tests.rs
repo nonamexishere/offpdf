@@ -4,8 +4,7 @@
 //! `install_from_reader`, `list_ready`, `get`, `loadable_path`, `remove`,
 //! and the versioned `ModelManifest` JSON (`schema_version`, size, license,
 //! `runtime_compat`, SHA-256 hex `checksum`).
-//! The store module may be missing until impl; that compile failure is
-//! fail-today. Do not edit `ai_tests.rs`.
+//! Do not edit `ai_tests.rs`.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -617,8 +616,9 @@ fn store_no_network_no_shell() {
     );
 }
 
-/// store-no-gguf-in-clone — walk test sources / src-tauri: no `.gguf` and no
-/// huge weight. Tests use in-memory FIXTURE.
+/// store-no-gguf-in-clone — walk crate sources (skip gitignored bundle dirs):
+/// no `.gguf` / `.ggml` / `.safetensors` and no huge weight. Tests use
+/// in-memory FIXTURE.
 #[test]
 fn store_no_gguf_in_clone() {
     assert_eq!(
@@ -672,7 +672,19 @@ fn walk_src_tauri_lock(dir: &Path, out: &mut Vec<PathBuf>) {
             Err(_) => continue,
         };
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if name == "target" || name == "vendor" || name == "resources" {
+        // Local prepare-* trees drop multi-MB tools here; they are not weights.
+        if matches!(
+            name,
+            "binaries"
+                | "share"
+                | "tesseract"
+                | "libreoffice"
+                | "windows-runtime"
+                | "gen"
+                | "target"
+                | "vendor"
+                | "resources"
+        ) {
             continue;
         }
         if path.is_dir() {
