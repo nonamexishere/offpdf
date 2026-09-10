@@ -3,11 +3,9 @@
 //! Public names are the Approach A lock: `ai::fake` / `ai::fake_with_script`,
 //! `InferenceBackend` {load, unload, generate, cancel, status, health},
 //! reserved prompts `FAIL` and `SLOW`, `FakeScript::Unhealthy`.
-//! The `ai` module may be missing until impl; that compile failure is fail-today.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -77,7 +75,6 @@ fn assert_ai_error_fields(err: &crate::error::AppError, must_id: &str) {
     );
 }
 
-/// ai-cargo-no-runtime-crate — control; must pass today.
 #[test]
 fn ai_cargo_no_runtime_crate() {
     let toml_path = manifest_dir().join("Cargo.toml");
@@ -93,7 +90,6 @@ fn ai_cargo_no_runtime_crate() {
     );
 }
 
-/// ai-no-network-no-shell — fail today if `src/ai/` is missing.
 #[test]
 fn ai_no_network_no_shell() {
     let ai_dir = ai_src_dir();
@@ -139,7 +135,6 @@ fn ai_no_network_no_shell() {
     );
 }
 
-/// ai-no-pdf-bytes-api — generate is a UTF-8 string, not PDF / page bytes.
 #[test]
 fn ai_no_pdf_bytes_api() {
     let backend = crate::ai::fake();
@@ -155,7 +150,7 @@ fn ai_no_pdf_bytes_api() {
     let ai_dir = ai_src_dir();
     assert!(
         ai_dir.is_dir(),
-        "ai-no-pdf-bytes-api: no generate signature to inspect until src-tauri/src/ai/ exists"
+        "ai-no-pdf-bytes-api: src-tauri/src/ai/ must exist so generate signatures can be scanned"
     );
     let mut files = Vec::new();
     walk_rs_files(&ai_dir, &mut files);
@@ -189,7 +184,6 @@ fn ai_no_pdf_bytes_api() {
     );
 }
 
-/// ai-trait-surface — factory handle exposes load, unload, generate, cancel, status, health.
 #[test]
 fn ai_trait_surface() {
     let backend = crate::ai::fake();
@@ -205,21 +199,24 @@ fn ai_trait_surface() {
         .expect("ai-trait-surface: unload must exist and not fail on Fake");
 }
 
-/// ai-factory-hides-concrete — construct via `ai::fake`, never a llama/candle/ort type.
 #[test]
 fn ai_factory_hides_concrete() {
-    // Construct only via the crate-visible factory. Do not name a llama/candle/ort type.
     let backend = crate::ai::fake();
     let _ = backend.status();
     let scripted = crate::ai::fake_with_script(crate::ai::FakeScript::Unhealthy);
     let _ = scripted.health();
 
     let ai_dir = ai_src_dir();
-    if !ai_dir.is_dir() {
-        return;
-    }
+    assert!(
+        ai_dir.is_dir(),
+        "ai-factory-hides-concrete: src-tauri/src/ai/ must exist so the source lock can scan it"
+    );
     let mut files = Vec::new();
     walk_rs_files(&ai_dir, &mut files);
+    assert!(
+        !files.is_empty(),
+        "ai-factory-hides-concrete: src-tauri/src/ai/ must contain Rust sources to scan"
+    );
     let mut hits = Vec::new();
     for path in &files {
         let src = std::fs::read_to_string(path).unwrap_or_else(|err| {
@@ -242,7 +239,6 @@ fn ai_factory_hides_concrete() {
     );
 }
 
-/// ai-fake-deterministic — same load + same prompt twice → identical UTF-8.
 #[test]
 fn ai_fake_deterministic() {
     let backend = crate::ai::fake();
@@ -267,7 +263,6 @@ fn ai_fake_deterministic() {
     );
 }
 
-/// ai-fake-not-ready — generate before load is AppError, not a panic.
 #[test]
 fn ai_fake_not_ready() {
     let backend = crate::ai::fake();
@@ -286,7 +281,6 @@ fn ai_fake_not_ready() {
     assert_ai_error_fields(&err, "ai-fake-not-ready");
 }
 
-/// ai-fake-fail-apperror — reserved prompt FAIL maps to AI_* AppError, not ENGINE_FAILED.
 #[test]
 fn ai_fake_fail_apperror() {
     let backend = crate::ai::fake();
@@ -296,6 +290,11 @@ fn ai_fake_fail_apperror() {
     let err = backend
         .generate("FAIL")
         .expect_err("ai-fake-fail-apperror: reserved prompt FAIL must return AppError");
+    assert_eq!(
+        err.code, "AI_FAILED",
+        "ai-fake-fail-apperror: .code must be AI_FAILED, got {}",
+        err.code
+    );
     assert!(
         err.code.starts_with("AI_"),
         "ai-fake-fail-apperror: .code must be AI_*, got {}",
@@ -308,7 +307,6 @@ fn ai_fake_fail_apperror() {
     assert_ai_error_fields(&err, "ai-fake-fail-apperror");
 }
 
-/// ai-fake-cancel-cancelled — cancel an in-flight SLOW generate → CANCELLED.
 #[test]
 fn ai_fake_cancel_cancelled() {
     let backend = Arc::new(crate::ai::fake());
@@ -321,8 +319,6 @@ fn ai_fake_cancel_cancelled() {
         std::thread::spawn(move || backend.generate("SLOW"))
     };
 
-    // SLOW must stay in-flight long enough for cancel to observe it.
-    std::thread::sleep(Duration::from_millis(50));
     let _ = backend.cancel();
 
     let result = worker
@@ -344,7 +340,36 @@ fn ai_fake_cancel_cancelled() {
     );
 }
 
-/// ai-fake-health-offline — health ok after load, and scripted unhealthy, no model/network.
+#[test]
+fn ai_fake_cancel_unload() {
+    let backend = Arc::new(crate::ai::fake());
+    backend
+        .load()
+        .expect("ai-fake-cancel-unload: load must succeed before SLOW");
+
+    let worker = {
+        let backend = Arc::clone(&backend);
+        std::thread::spawn(move || backend.generate("SLOW"))
+    };
+
+    let _ = backend.cancel();
+    backend
+        .unload()
+        .expect("ai-fake-cancel-unload: unload after cancel must succeed");
+
+    let result = worker
+        .join()
+        .expect("ai-fake-cancel-unload: generate thread must not panic");
+    let err = result.expect_err(
+        "ai-fake-cancel-unload: cancel then unload during SLOW must be Err, never Ok",
+    );
+    assert!(
+        err.code == "CANCELLED" || err.code == "AI_NOT_READY",
+        "ai-fake-cancel-unload: .code must be CANCELLED or AI_NOT_READY, got {}",
+        err.code
+    );
+}
+
 #[test]
 fn ai_fake_health_offline() {
     let backend = crate::ai::fake();
@@ -372,7 +397,6 @@ fn ai_fake_health_offline() {
     );
 }
 
-/// ai-fake-unload — load → Ready; unload → Unloaded; generate after unload → not-ready.
 #[test]
 fn ai_fake_unload() {
     let backend = crate::ai::fake();

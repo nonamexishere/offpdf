@@ -12,7 +12,7 @@ use super::{BackendStatus, FakeScript, Health, InferenceBackend};
 
 const BACKEND_ID: &str = "fake";
 const SLOW_SLICE: Duration = Duration::from_millis(10);
-const SLOW_SLICES: u32 = 25;
+const SLOW_SLICES: u32 = 500;
 
 pub(crate) struct FakeBackend {
     loaded: AtomicBool,
@@ -38,14 +38,13 @@ impl FakeBackend {
     }
 
     pub fn load(&self) -> Result<(), AppError> {
-        self.cancel.store(false, Ordering::SeqCst);
         self.loaded.store(true, Ordering::SeqCst);
         Ok(())
     }
 
     pub fn unload(&self) -> Result<(), AppError> {
+        self.cancel.store(true, Ordering::SeqCst);
         self.loaded.store(false, Ordering::SeqCst);
-        self.cancel.store(false, Ordering::SeqCst);
         Ok(())
     }
 
@@ -60,6 +59,9 @@ impl FakeBackend {
 
         if prompt == "SLOW" {
             for _ in 0..SLOW_SLICES {
+                if !self.loaded.load(Ordering::SeqCst) {
+                    return Err(AppError::ai_not_ready());
+                }
                 if self.cancel.load(Ordering::SeqCst) {
                     let _ = self.take_cancel();
                     return Err(AppError::cancelled());
@@ -68,6 +70,9 @@ impl FakeBackend {
             }
         }
 
+        if !self.loaded.load(Ordering::SeqCst) {
+            return Err(AppError::ai_not_ready());
+        }
         if self.take_cancel() {
             return Err(AppError::cancelled());
         }
