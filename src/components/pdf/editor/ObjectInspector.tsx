@@ -312,8 +312,8 @@ export function ObjectInspector({
         />
       )}
 
-      {obj.kind !== "link" && !markup && <label className="field__label">Opacity</label>}
-      {obj.kind !== "link" && !markup && (
+      {obj.kind !== "link" && obj.kind !== "redact" && !markup && <label className="field__label">Opacity</label>}
+      {obj.kind !== "link" && obj.kind !== "redact" && !markup && (
         <div className="pdf-editor__opacity">
           <input
             type="range"

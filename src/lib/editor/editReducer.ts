@@ -111,10 +111,12 @@ function applyUpdate(
       const nextPatch = { ...patch };
       if (o.kind === "redact") {
         delete nextPatch.objectRotate;
+        delete (nextPatch as { opacity?: number }).opacity;
       }
       const next = { ...o, ...nextPatch } as EditObject;
       if (next.kind === "redact") {
         delete next.objectRotate;
+        delete (next as { opacity?: number }).opacity;
       }
       if (patch.rect) {
         next.rect = normalizePdfRect(patch.rect);

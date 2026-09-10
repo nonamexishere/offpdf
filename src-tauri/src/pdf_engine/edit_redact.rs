@@ -609,7 +609,7 @@ fn collect_pages_tree_nodes(doc: &Document) -> Vec<ObjectId> {
             continue;
         };
         let typ = dict.get(b"Type").ok().and_then(|o| o.as_name().ok());
-        if typ == Some(b"Page") {
+        if typ != Some(b"Pages") {
             continue;
         }
         out.push(id);

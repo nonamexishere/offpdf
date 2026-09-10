@@ -3256,7 +3256,6 @@ mod tests {
     // on sibling tmp + same_file_identity.
     #[test]
     // F16 keepGreen: apply / flatten stay on sibling tmp + same_file_identity.
-    // keepGreen (#10 OVERWRITE): redaction save still uses same_file_identity.
     fn export_rejects_hard_linked_destination() {
         let Some(qpdf) = test_qpdf() else {
             eprintln!("skip: qpdf not available");
