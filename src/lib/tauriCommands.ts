@@ -86,6 +86,20 @@ export function getTempDir(): Promise<string> {
   return invoke<string>("get_temp_dir");
 }
 
+/** Drain OS-opened paths queued before the frontend listener was ready. */
+export function takeOpenedPaths(): Promise<string[]> {
+  return invoke<string[]>("take_opened_paths");
+}
+
+/** Subscribe to later Open With / second-instance paths (paths only). */
+export async function onOpenedPaths(
+  handler: (paths: string[]) => void,
+): Promise<UnlistenFn> {
+  return listen<string[]>("os-open:paths", (event) => {
+    handler(event.payload ?? []);
+  });
+}
+
 /** Copy a file to a new path; returns the destination path. */
 export function copyFile(src: string, dst: string): Promise<string> {
   return invoke<string>("copy_file", { src, dst });
@@ -279,6 +293,11 @@ export function diffPages(
 /** Whether Tesseract (OCR) is available. */
 export function ocrAvailable(): Promise<boolean> {
   return invoke<boolean>("ocr_available");
+}
+
+/** Installed Tesseract language codes from the same binary the OCR job uses. */
+export function ocrListLangs(): Promise<string[]> {
+  return invoke<string[]>("ocr_list_langs");
 }
 
 /** OCR the combined document into one searchable PDF. `lang` e.g. "eng" or "tur". */

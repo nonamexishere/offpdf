@@ -100,6 +100,22 @@ All published binaries are available on the
 See the [code signing policy](./CODE_SIGNING_POLICY.md) for how official release
 artifacts are built, approved, and verified.
 
+## Open With (desktop)
+
+A packaged build registers OffPDF as an **Open With** handler for the same types
+the in-app picker already accepts (PDF, images including HEIC/HEIF, and Office).
+It is not the silent default PDF app (`bundle.fileAssociations` uses
+`rank: Alternate`). Choose OffPDF from Finder, Explorer, or your Linux file
+manager.
+
+Opened files go into the existing workspace. No merge, compress, convert, or
+redact job starts until you pick a tool. If OffPDF is already running, the
+existing window is focused and the files are added there.
+
+Association metadata lives in `src-tauri/tauri.conf.json`. Full Finder/Explorer
+clicks need a packaged build (`npm run tauri:build`) or a local `tauri:dev`
+session plus a manual OS association.
+
 ## Privacy model
 
 - Documents are processed by local binaries on your machine.

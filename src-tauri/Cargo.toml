@@ -47,6 +47,9 @@ heif-rs = { path = "vendor/heif-rs" }
 [dev-dependencies]
 flate2 = "1"
 
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"
+
 [features]
 # By default Tauri uses custom protocols. Keep network features off.
 default = ["custom-protocol"]
