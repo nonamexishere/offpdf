@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -7,7 +7,6 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { formatBytes } from "@/lib/formatBytes";
 import {
-  aiCancel,
   aiImportModel,
   aiListModels,
   aiLoadModel,
@@ -36,6 +35,7 @@ export function LocalModelSection() {
     null,
   );
   const [busy, setBusy] = useState(false);
+  const cancelledRef = useRef(false);
 
   const view = modelSetupView({
     snapshot,
@@ -68,10 +68,12 @@ export function LocalModelSection() {
 
   const run = async (title: string, work: () => Promise<void>) => {
     if (busy) return;
+    cancelledRef.current = false;
     setBusy(true);
     try {
       await work();
     } catch (err) {
+      if (cancelledRef.current) return;
       toast({ title, description: toAppError(err).message, variant: "error" });
     } finally {
       setBusy(false);
@@ -85,8 +87,9 @@ export function LocalModelSection() {
 
   const pickPreview = async () => {
     const path = await aiPickModelFile();
-    if (!path) return;
+    if (!path || cancelledRef.current) return;
     const facts = await aiPreviewModel(path);
+    if (cancelledRef.current) return;
     setPreview(facts);
     setPreviewPath(path);
   };
@@ -97,6 +100,7 @@ export function LocalModelSection() {
         try {
           await aiImportModel(previewPath, preview.sha256);
         } catch (err) {
+          if (cancelledRef.current) return;
           const appErr = toAppError(err);
           if (
             appErr.code === "AI_MODEL_INVALID" ||
@@ -108,6 +112,7 @@ export function LocalModelSection() {
         }
         clearPreview();
         await refresh();
+        if (cancelledRef.current) return;
         toast({
           title: "Model imported",
           description: "The file was copied into OffPDF app data.",
@@ -136,11 +141,10 @@ export function LocalModelSection() {
       await refresh();
     });
 
-  const onCancel = () =>
-    run("Could not cancel", async () => {
-      if (preview) clearPreview();
-      await aiCancel();
-    });
+  const onCancel = () => {
+    cancelledRef.current = true;
+    clearPreview();
+  };
 
   const onConfirmRemove = () =>
     run("Could not remove model", async () => {
@@ -248,7 +252,7 @@ export function LocalModelSection() {
             Choose a different file
           </Button>
         )}
-        <Button variant="secondary" onClick={onCancel} disabled={busy} leftIcon={<Icon name="stop" size={16} />}>
+        <Button variant="secondary" onClick={onCancel} leftIcon={<Icon name="stop" size={16} />}>
           Cancel
         </Button>
       </div>

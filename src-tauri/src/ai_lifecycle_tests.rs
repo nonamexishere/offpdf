@@ -374,6 +374,38 @@ fn lifecycle_cancel_generate() {
     );
 }
 
+/// setup-cancel-no-latch — import+load, do not call `cancel`;
+/// `generate("hello")` is Ok. Settings dismiss of preview must not
+/// call `lifecycle::cancel`. Keep SLOW+cancel → CANCELLED in
+/// `lifecycle_cancel_generate`.
+#[test]
+fn lifecycle_cancel_no_latch() {
+    let root = Scratch::new("cancel-no-latch");
+    let src_dir = Scratch::new("cancel-no-latch-src");
+    let src = write_fixture(src_dir.path(), "model-bytes");
+    let backend = crate::ai::fake();
+
+    import(root.path(), &src, FIXTURE_SHA256)
+        .unwrap_or_else(|err| panic!("setup-cancel-no-latch: import: {err}"));
+    load(root.path(), &backend, FIXTURE_SHA256)
+        .unwrap_or_else(|err| panic!("setup-cancel-no-latch: load: {err}"));
+
+    // Settings-style dismiss: drop preview only. Do not call cancel().
+    let out = generate(&backend, "hello").unwrap_or_else(|err| {
+        panic!(
+            "setup-cancel-no-latch: generate(\"hello\") after dismiss-without-cancel must be Ok: {err}"
+        )
+    });
+    assert!(
+        !out.is_empty(),
+        "setup-cancel-no-latch: generate(\"hello\") must return UTF-8"
+    );
+    assert_ne!(
+        out, "CANCELLED",
+        "setup-cancel-no-latch: generate must not look like a cancel error"
+    );
+}
+
 /// setup-remove-reports-bytes — remove returns recovered_bytes >= size;
 /// second remove is AI_MODEL_*.
 #[test]
