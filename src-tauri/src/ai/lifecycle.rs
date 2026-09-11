@@ -1,7 +1,7 @@
 //! Opt-in model lifecycle helpers. Injected store root; no HTTP.
 //!
 //! Preview hashes a user-chosen path and does not write. Import is a second
-//! explicit call. Load requires a ready store entry, then pathless Fake load.
+//! explicit call. Load requires a ready store entry.
 
 use std::fs::File;
 use std::io::Read;
@@ -62,7 +62,7 @@ pub fn import(root: &Path, path: &Path, expected_sha256: &str) -> Result<ModelMa
     store.import_file(path, expected_sha256)
 }
 
-/// Require a ready checksum, then pathless `Fake.load()`.
+/// Require a ready checksum, then load the in-process backend.
 pub fn load(
     root: &Path,
     backend: &(impl InferenceBackend + ?Sized),

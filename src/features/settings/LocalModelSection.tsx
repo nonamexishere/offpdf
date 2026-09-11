@@ -78,12 +78,35 @@ export function LocalModelSection() {
     }
   };
 
+  const clearPreview = () => {
+    setPreview(null);
+    setPreviewPath(null);
+  };
+
+  const pickPreview = async () => {
+    const path = await aiPickModelFile();
+    if (!path) return;
+    const facts = await aiPreviewModel(path);
+    setPreview(facts);
+    setPreviewPath(path);
+  };
+
   const onImport = () =>
     run("Could not import model", async () => {
       if (preview && previewPath) {
-        await aiImportModel(previewPath, preview.sha256);
-        setPreview(null);
-        setPreviewPath(null);
+        try {
+          await aiImportModel(previewPath, preview.sha256);
+        } catch (err) {
+          const appErr = toAppError(err);
+          if (
+            appErr.code === "AI_MODEL_INVALID" ||
+            /checksum/i.test(`${appErr.message} ${appErr.details ?? ""}`)
+          ) {
+            clearPreview();
+          }
+          throw err;
+        }
+        clearPreview();
         await refresh();
         toast({
           title: "Model imported",
@@ -92,11 +115,13 @@ export function LocalModelSection() {
         });
         return;
       }
-      const path = await aiPickModelFile();
-      if (!path) return;
-      const facts = await aiPreviewModel(path);
-      setPreview(facts);
-      setPreviewPath(path);
+      await pickPreview();
+    });
+
+  const onChooseDifferent = () =>
+    run("Could not preview model", async () => {
+      clearPreview();
+      await pickPreview();
     });
 
   const onLoad = (checksum: string) =>
@@ -113,6 +138,7 @@ export function LocalModelSection() {
 
   const onCancel = () =>
     run("Could not cancel", async () => {
+      if (preview) clearPreview();
       await aiCancel();
     });
 
@@ -122,8 +148,7 @@ export function LocalModelSection() {
       const result = await aiRemoveModel(pendingRemove.checksum);
       setPendingRemove(null);
       if (preview?.sha256 === result.checksum) {
-        setPreview(null);
-        setPreviewPath(null);
+        clearPreview();
       }
       await refresh();
       toast({
@@ -218,6 +243,11 @@ export function LocalModelSection() {
         <Button variant="primary" onClick={onImport} loading={busy} leftIcon={<Icon name="upload" size={16} />}>
           {view.importCta}
         </Button>
+        {preview && (
+          <Button variant="secondary" onClick={onChooseDifferent} disabled={busy}>
+            Choose a different file
+          </Button>
+        )}
         <Button variant="secondary" onClick={onCancel} disabled={busy} leftIcon={<Icon name="stop" size={16} />}>
           Cancel
         </Button>

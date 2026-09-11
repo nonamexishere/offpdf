@@ -243,14 +243,14 @@ pub async fn ai_unload_model(
     .map_err(join_err)?
 }
 
-/// Cooperative cancel of an in-flight generate. Safe while load is instant.
+/// Cooperative cancel of an in-flight generate.
 #[tauri::command]
 pub fn ai_cancel(session: tauri::State<'_, Arc<AiSession>>) -> Result<(), AppError> {
     cancel(session.backend());
     Ok(())
 }
 
-/// Smoke / cancel path. Prompt only — no PDF path.
+/// Generate from a prompt. No PDF path.
 #[tauri::command]
 pub async fn ai_generate(
     session: tauri::State<'_, Arc<AiSession>>,

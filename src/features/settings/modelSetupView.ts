@@ -79,14 +79,8 @@ export function modelSetupView(input: {
 }
 
 function composeCompatibility(runtimeCompat: string, compatibility?: string): string {
-  const parts = [runtimeCompat, compatibility, HARDWARE_STUB].filter(
-    (part): part is string => Boolean(part && part.trim()),
-  );
-  const seen = new Set<string>();
-  const unique = parts.filter((part) => {
-    if (seen.has(part)) return false;
-    seen.add(part);
-    return true;
-  });
-  return unique.join(" — ");
+  const composed = compatibility?.trim();
+  if (composed) return composed;
+  const runtime = runtimeCompat.trim();
+  return runtime ? `${runtime} — ${HARDWARE_STUB}` : HARDWARE_STUB;
 }

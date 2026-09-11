@@ -59,6 +59,49 @@ describe("setup-facts-before-import", () => {
   });
 });
 
+describe("setup-facts-wire-compat", () => {
+  it("live DTO compatibility contains the hardware stub once and does not start with any — any", async () => {
+    const { modelSetupView } = await loadView();
+    const view = modelSetupView({
+      snapshot: { ready: [], backendStatus: "Unloaded" },
+      preview: {
+        size: FIXTURE_SIZE,
+        license: "imported",
+        location: STORE_LOCATION,
+        runtimeCompat: "any",
+        compatibility: `any. ${HARDWARE_STUB}`,
+      },
+    });
+
+    const compatibility = view.facts?.compatibility ?? "";
+    expect(compatibility.split(HARDWARE_STUB).length - 1).toBe(1);
+    expect(compatibility.startsWith("any — any")).toBe(false);
+    expect(view.showFacts).toBe(true);
+    expect(view.importCta).toMatch(/import/i);
+  });
+});
+
+describe("setup-preview-can-rechoose", () => {
+  it("preview keeps the facts panel and an Import CTA so another file can be chosen", async () => {
+    const { modelSetupView } = await loadView();
+    const view = modelSetupView({
+      snapshot: { ready: [], backendStatus: "Unloaded" },
+      preview: {
+        size: FIXTURE_SIZE,
+        license: "imported",
+        location: STORE_LOCATION,
+        runtimeCompat: "any",
+        compatibility: `any. ${HARDWARE_STUB}`,
+      },
+    });
+
+    expect(view.showFacts).toBe(true);
+    expect(view.importCta).toMatch(/import/i);
+    expect(view.downloadUrl ?? null).toBeNull();
+    expect(view.autoImport).toBe(false);
+  });
+});
+
 describe("setup-import-explicit-only", () => {
   it("empty-store view has no download URL and does not auto-import", async () => {
     const { modelSetupView } = await loadView();
