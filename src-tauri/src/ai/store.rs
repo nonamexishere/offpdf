@@ -4,7 +4,9 @@
 //! `get` / `loadable_path` treat an entry as ready when the blob re-hashes to
 //! the checksum. `list_ready` trusts recorded size (file exists,
 //! `metadata.len() == size`) and does not SHA-256 every blob. Leftover
-//! `staging/` is never ready. `open` sweeps leftover `staging/install-*`.
+//! `staging/` is never ready. `open` sweeps leftover `staging/install-*`
+//! except this process's `install-{pid}-*` (mid-import `open` must not
+//! unlink live staging).
 
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -290,10 +292,12 @@ impl ModelStore {
         let Ok(entries) = fs::read_dir(self.staging_dir()) else {
             return;
         };
+        let live_prefix = format!("install-{}-", std::process::id());
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name();
-            if path.is_dir() && name.to_string_lossy().starts_with("install-") {
+            let name = name.to_string_lossy();
+            if path.is_dir() && name.starts_with("install-") && !name.starts_with(&live_prefix) {
                 let _ = fs::remove_dir_all(&path);
             }
         }

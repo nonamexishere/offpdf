@@ -3,7 +3,7 @@
 //! Preview hashes a user-chosen path and does not write. Import is a second
 //! explicit call. Load requires a ready store entry.
 
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -91,12 +91,26 @@ pub fn generate(backend: &(impl InferenceBackend + ?Sized), prompt: &str) -> Res
 /// Delete one checksum and report recovered blob bytes.
 pub fn remove(root: &Path, checksum: &str) -> Result<ModelRemoveResult, AppError> {
     let store = ModelStore::open(root)?;
-    let recovered_bytes = store.get(checksum).map(|manifest| manifest.size).unwrap_or(0);
+    let recovered_bytes = recorded_remove_size(root, checksum);
     store.remove(checksum)?;
     Ok(ModelRemoveResult {
         checksum: checksum.to_string(),
         recovered_bytes,
     })
+}
+
+/// Size from dest `manifests/<checksum>.json`, else blob `metadata.len()`.
+/// Does not hash. Truncated blobs still report the recorded size.
+fn recorded_remove_size(root: &Path, checksum: &str) -> u64 {
+    let manifest_path = root.join("manifests").join(format!("{checksum}.json"));
+    if let Ok(json) = fs::read_to_string(&manifest_path) {
+        if let Ok(manifest) = ModelManifest::parse(&json) {
+            return manifest.size;
+        }
+    }
+    fs::metadata(root.join("blobs").join(checksum))
+        .map(|meta| meta.len())
+        .unwrap_or(0)
 }
 
 /// Ready manifests on disk plus the current backend status.

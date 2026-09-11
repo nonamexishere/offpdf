@@ -760,6 +760,47 @@ fn store_commit_over_existing_manifest() {
     );
 }
 
+/// store-sweep-skip-live-pid — leftover `staging/install-{pid}-live/`
+/// survives `ModelStore::open`; crash leftover `install-dead` is still
+/// removed. Mid-import `open` (list/snapshot) must not unlink this
+/// process's staging dir. Keep `store_sweep_install_staging`.
+#[test]
+fn store_sweep_skip_live_pid() {
+    let root = Scratch::new("sweep-skip-live");
+    let live_name = format!("install-{}-live", std::process::id());
+    let live = root.path().join("staging").join(&live_name);
+    let dead = root.path().join("staging").join("install-dead");
+    std::fs::create_dir_all(&live).unwrap();
+    std::fs::write(live.join("blob"), b"junk").unwrap();
+    std::fs::create_dir_all(&dead).unwrap();
+    std::fs::write(dead.join("blob"), b"junk").unwrap();
+    assert!(
+        live.is_dir(),
+        "store-sweep-skip-live-pid: pre-condition: staging/{live_name} must exist before open"
+    );
+    assert!(
+        dead.is_dir(),
+        "store-sweep-skip-live-pid: pre-condition: leftover staging/install-dead must exist before open"
+    );
+
+    let _store = ModelStore::open(root.path()).unwrap_or_else(|err| {
+        panic!("store-sweep-skip-live-pid: open injected root must succeed: {err}")
+    });
+
+    assert!(
+        live.exists(),
+        "store-sweep-skip-live-pid: staging/{live_name} must still exist after ModelStore::open (this process's live staging)"
+    );
+    assert!(
+        live.join("blob").is_file(),
+        "store-sweep-skip-live-pid: live staging blob must not be swept"
+    );
+    assert!(
+        !dead.exists(),
+        "store-sweep-skip-live-pid: leftover staging/install-dead must be gone after ModelStore::open"
+    );
+}
+
 fn walk_src_tauri_lock(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,

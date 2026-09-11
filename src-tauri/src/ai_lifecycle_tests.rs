@@ -615,6 +615,81 @@ fn lifecycle_no_http_no_gguf() {
     );
 }
 
+/// lifecycle-remove-size-without-hash — import fixture, note `size`.
+/// Truncate dest blob to 0 bytes. `lifecycle::remove`. `recovered_bytes`
+/// must equal the original recorded size (not 0). Fail-today: `get`
+/// hashes the truncated blob and recovered collapses to 0.
+#[test]
+fn lifecycle_remove_size_without_hash() {
+    let root = Scratch::new("remove-size");
+    let src_dir = Scratch::new("remove-size-src");
+    let src = write_fixture(src_dir.path(), "model-bytes");
+    let store = ModelStore::open(root.path()).unwrap_or_else(|err| {
+        panic!("lifecycle-remove-size-without-hash: open: {err}")
+    });
+
+    import(root.path(), &src, FIXTURE_SHA256).unwrap_or_else(|err| {
+        panic!("lifecycle-remove-size-without-hash: import: {err}")
+    });
+    let size = store
+        .get(FIXTURE_SHA256)
+        .unwrap_or_else(|err| {
+            panic!("lifecycle-remove-size-without-hash: get before truncate: {err}")
+        })
+        .size;
+    assert_eq!(
+        size,
+        FIXTURE.len() as u64,
+        "lifecycle-remove-size-without-hash: recorded size must be the fixture length"
+    );
+    assert_ne!(
+        size, 0,
+        "lifecycle-remove-size-without-hash: original size must be non-zero so a 0 recovered_bytes is distinguishable"
+    );
+
+    let blobs = root.path().join("blobs");
+    let mut blob_files = Vec::new();
+    walk_files(&blobs, &mut blob_files);
+    assert!(
+        !blob_files.is_empty(),
+        "lifecycle-remove-size-without-hash: dest blob must exist after import"
+    );
+    for path in &blob_files {
+        std::fs::write(path, b"").unwrap_or_else(|err| {
+            panic!(
+                "lifecycle-remove-size-without-hash: truncate {} to 0 bytes: {err}",
+                path.display()
+            )
+        });
+        let meta = std::fs::metadata(path).unwrap_or_else(|err| {
+            panic!(
+                "lifecycle-remove-size-without-hash: metadata after truncate {}: {err}",
+                path.display()
+            )
+        });
+        assert_eq!(
+            meta.len(),
+            0,
+            "lifecycle-remove-size-without-hash: dest blob {} must be 0 bytes after truncate",
+            path.display()
+        );
+    }
+
+    let removed = remove(root.path(), FIXTURE_SHA256).unwrap_or_else(|err| {
+        panic!(
+            "lifecycle-remove-size-without-hash: remove of a truncated blob must succeed: {err}"
+        )
+    });
+    assert_eq!(
+        removed.checksum, FIXTURE_SHA256,
+        "lifecycle-remove-size-without-hash: result.checksum must name the removed model"
+    );
+    assert_eq!(
+        removed.recovered_bytes, size,
+        "lifecycle-remove-size-without-hash: recovered_bytes must equal the original recorded size {size}, not the truncated blob length"
+    );
+}
+
 fn walk_src_tauri_lock(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
